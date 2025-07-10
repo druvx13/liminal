@@ -1,0 +1,489 @@
+import { GoogleGenAI } from "https://esm.sh/@google/genai@^1.9.0";
+
+// --- CONSTANTS & DATA ---
+const SPATIAL_ARCHETYPES = [
+  { label: 'Empty Corridor', value: 'An empty, endlessly long corridor in a brutalist building' },
+  { label: 'Airport at Night', value: 'An abandoned airport terminal at night, gates empty' },
+  { label: 'Suburban Stairwell', value: 'A carpeted suburban stairwell leading to a closed door' },
+  { label: 'Vacant Lobby', value: 'A vacant hotel lobby with dated furniture' },
+  { label: 'Overgrown Arcade', value: 'An old, overgrown video game arcade with silent machines' },
+  { label: 'Foggy Bridge', value: 'A pedestrian bridge disappearing into thick fog' },
+  { label: 'Underground Station', value: 'A deserted underground train station, tiles gleaming' },
+  { label: 'School Hallway', value: 'An empty school hallway during summer break' },
+];
+
+const ATMOSPHERIC_MODIFIERS = [
+  { label: 'Golden Hour Haze', value: 'bathed in a golden-hour haze' },
+  { label: 'Fog-Diffused Lighting', value: 'with soft, fog-diffused lighting' },
+  { label: 'Flickering Fluorescents', value: 'lit by flickering fluorescent lights' },
+  { label: 'Desaturated Palette', value: 'a heavily desaturated color palette' },
+  { label: 'Oppressive Shadows', value: 'with long, oppressive shadows' },
+  { label: 'Amber Glow', value: 'punctuated by a strange amber glow' },
+  { label: 'Atmospheric Haze', value: 'filled with an atmospheric haze that obscures the distance' },
+  { label: 'Eerie Stillness', value: 'an eerie, absolute stillness' },
+];
+
+const TEMPORAL_AMPLIFIERS = [
+  { label: '1990s Nostalgia', value: 'with 1990s nostalgic color grading and technology' },
+  { label: 'Glitch Aesthetics', value: 'featuring digital glitch artifacts and visual corruption' },
+  { label: 'Anachronistic Textures', value: 'containing anachronistic textures and materials' },
+  { label: 'Temporal Displacement', value: 'a sense of temporal displacement' },
+  { label: 'Uncanny Familiarity', value: 'evoking a feeling of uncanny familiarity, a forgotten memory' },
+  { label: 'Snow-Covered Isolation', value: 'covered in a layer of pristine, untouched snow, suggesting deep isolation' },
+  { label: 'VHS Film Grain', value: 'seen through the lens of a VHS camera with heavy film grain' },
+  { label: 'Faded Decor', value: 'with faded decor from a forgotten era' },
+];
+
+const PROMPT_DATA = {
+    spatial: { title: '1. Spatial Archetype', description: 'Choose a transitional space.', options: SPATIAL_ARCHETYPES },
+    atmospheric: { title: '2. Atmospheric Modifier', description: 'Add environmental qualities.', options: ATMOSPHERIC_MODIFIERS },
+    temporal: { title: '3. Temporal/Emotional Amplifier', description: 'Infuse a feeling or era.', options: TEMPORAL_AMPLIFIERS },
+};
+
+const ASPECT_RATIOS = ["16:9", "9:16", "4:3", "3:4", "1:1"];
+
+const ICONS = {
+    shuffle: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H9.728a2 2 0 00-1.789 1.106l-1.858 3.715a2 2 0 001.789 2.894h4.432a2 2 0 001.789-1.106l1.858-3.715a2 2 0 00-1.789-2.894zM12 5v6m-3-3h6" /><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H9.728a2 2 0 00-1.789 1.106l-1.858 3.715a2 2 0 001.789 2.894h4.432a2 2 0 001.789-1.106l1.858-3.715a2 2 0 00-1.789-2.894zM12 5v6m-3-3h6" transform="rotate(180 12 12)" /></svg>`,
+    copy: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>`,
+    download: `<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>`,
+    image: `<svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-liminal-border" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`,
+    alert: `<svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`,
+    sparkles: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2 text-liminal-accent"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" /></svg>`,
+    trash: `<svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>`,
+    refresh: `<svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5" /><path stroke-linecap="round" stroke-linejoin="round" d="M4 9a9 9 0 0114.65-4.65L20 5M4 19l1.35-1.35A9 9 0 0115 4.05" /></svg>`,
+    spinner: `<svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`
+};
+
+// --- GEMINI SERVICE ---
+let ai;
+let apiKey = null;
+
+const initializeAI = () => {
+    // Try to get API_KEY from a global variable if defined (e.g., by a .env file in a build setup)
+    // Fallback to prompting the user if not available.
+    // This is a simplified approach for client-side.
+    // For more robust solutions, consider a backend proxy or OAuth.
+    try {
+        if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+            apiKey = process.env.API_KEY;
+        }
+    } catch (e) {
+        // process is not defined (standard browser environment)
+    }
+
+    if (!apiKey) {
+        apiKey = localStorage.getItem('GEMINI_API_KEY');
+        if (!apiKey) {
+            apiKey = prompt("Please enter your Google Gemini API Key:");
+            if (apiKey) {
+                localStorage.setItem('GEMINI_API_KEY', apiKey);
+            } else {
+                alert("API Key is required to use the AI features. Please refresh and enter your key.");
+                return false;
+            }
+        }
+    }
+
+    try {
+        ai = new GoogleGenAI({ apiKey });
+        return true;
+    } catch (e) {
+        console.error("Error initializing GoogleGenAI:", e);
+        alert(`Failed to initialize AI. Error: ${e.message}. Please check your API key and console.`);
+        localStorage.removeItem('GEMINI_API_KEY'); // Clear potentially bad key
+        return false;
+    }
+};
+
+
+const generateLiminalPrompt = async (baseIdea) => {
+  if (!ai && !initializeAI()) return "Error: AI not initialized. Please provide API Key.";
+  try {
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Craft a liminal space prompt based on the idea: '${baseIdea}'`,
+        config: {
+          systemInstruction: `You are an expert prompt crafter specializing in AI-generated images of liminal spaces. Your task is to expand on a user's simple idea and create a detailed, evocative prompt. Your prompts must follow this structure: 1. **A Spatial Archetype:** A transitional space like an empty corridor, abandoned airport, or a vacant lobby. 2. **An Atmospheric Modifier:** An environmental quality such as 'bathed in a golden-hour haze', 'lit by flickering fluorescent lights', or 'with long, oppressive shadows'. 3. **A Temporal/Emotional Amplifier:** A feeling or era, for example 'with 1990s nostalgic color grading', 'featuring digital glitch artifacts', or 'evoking a feeling of uncanny familiarity'. Combine these three elements into a single, cohesive phrase. The final output should be ONLY the prompt text itself, without any extra explanation, labels, or markdown. The tone should be eerie, unsettling, nostalgic, and convey a sense of emptiness.`
+        }
+    });
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error generating liminal prompt:", error);
+    throw new Error(`AI prompt generation failed: ${error.message}`);
+  }
+};
+
+const generateLiminalImage = async (prompt, aspectRatio, negativePrompt) => {
+  if (!ai && !initializeAI()) throw new Error("AI not initialized. Please provide API Key.");
+  const fullPrompt = negativePrompt ? `${prompt}. Do not include or show the following: ${negativePrompt}.` : prompt;
+  try {
+    const response = await ai.models.generateImages({
+        model: 'imagen-3.0-generate-002',
+        prompt: fullPrompt,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: aspectRatio,
+        },
+    });
+
+    if (response.generatedImages && response.generatedImages.length > 0) {
+        const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+        if (base64ImageBytes) {
+          return `data:image/jpeg;base64,${base64ImageBytes}`;
+        }
+    }
+    throw new Error('No image was generated by the API.');
+  } catch (error) {
+    console.error("Error generating liminal image:", error);
+    let userFriendlyError = `Image generation failed: ${error.message}.`;
+    if (error.message && error.message.includes("API key not valid")) {
+        userFriendlyError = "Image generation failed: API key not valid. Please check your API key.";
+        localStorage.removeItem('GEMINI_API_KEY'); // Clear bad key
+        apiKey = null; // Reset key state
+    }
+    throw new Error(userFriendlyError);
+  }
+};
+
+
+// --- APPLICATION STATE ---
+let state = {
+    selections: {
+        spatial: null,
+        atmospheric: null,
+        temporal: null,
+    },
+    history: [],
+    aspectRatio: '16:9',
+};
+
+// --- DOM ELEMENTS ---
+const DOMElements = {
+    surpriseMeBtn: document.getElementById('surprise-me-btn'),
+    columns: {
+        spatial: document.getElementById('spatial-column'),
+        atmospheric: document.getElementById('atmospheric-column'),
+        temporal: document.getElementById('temporal-column'),
+    },
+    aiPromptIdeaInput: document.getElementById('ai-prompt-idea-input'),
+    askAssistantBtn: document.getElementById('ask-assistant-btn'),
+    assistantError: document.getElementById('assistant-error'),
+    finalPromptTextarea: document.getElementById('final-prompt'),
+    negativePromptInput: document.getElementById('negative-prompt'),
+    copyPromptBtn: document.getElementById('copy-prompt-btn'),
+    aspectRatioContainer: document.getElementById('aspect-ratio-container'),
+    generateImageBtn: document.getElementById('generate-image-btn'),
+    imageDisplayContainer: document.getElementById('image-display-container'),
+    historySection: document.getElementById('history-section'),
+    historyGrid: document.getElementById('history-grid'),
+    aiAssistantHeader: document.getElementById('ai-assistant-header'),
+};
+
+// --- RENDER & UI UPDATE FUNCTIONS ---
+
+const updateFinalPrompt = () => {
+    const { spatial, atmospheric, temporal } = state.selections;
+    const parts = [
+        spatial?.value,
+        atmospheric?.value,
+        temporal?.value,
+        "in the style of liminal space photography, eerie, unsettling, nostalgic, empty"
+    ].filter(Boolean);
+    DOMElements.finalPromptTextarea.value = parts.join(', ');
+};
+
+const renderPromptColumns = () => {
+    Object.entries(PROMPT_DATA).forEach(([key, data]) => {
+        const columnEl = DOMElements.columns[key];
+        if (!columnEl) {
+            console.warn(`DOM Element for column "${key}" not found.`);
+            return;
+        }
+        columnEl.innerHTML = `
+            <h2 class="text-lg font-bold text-white">${data.title}</h2>
+            <p class="text-sm text-liminal-text-muted mb-4">${data.description}</p>
+            <div class="space-y-2 flex-grow">
+                ${data.options.map(option => `
+                    <button
+                        data-key="${key}"
+                        data-value="${option.value}"
+                        class="w-full text-left p-3 rounded-md text-sm transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-liminal-accent bg-gray-700 hover:bg-gray-600 text-liminal-text">
+                        ${option.label}
+                    </button>
+                `).join('')}
+            </div>
+        `;
+    });
+    updateButtonVisuals();
+};
+
+const updateButtonVisuals = () => {
+    document.querySelectorAll('[data-key]').forEach(button => {
+        const key = button.dataset.key;
+        const value = button.dataset.value;
+        const selected = state.selections[key]?.value === value;
+        button.className = `w-full text-left p-3 rounded-md text-sm transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-liminal-accent ${
+            selected
+                ? 'bg-liminal-accent text-gray-900 font-semibold shadow-lg'
+                : 'bg-gray-700 hover:bg-gray-600 text-liminal-text'
+        }`;
+    });
+};
+
+const renderAspectRatioButtons = () => {
+    if (!DOMElements.aspectRatioContainer) return;
+    DOMElements.aspectRatioContainer.innerHTML = ASPECT_RATIOS.map(ratio => `
+        <button
+            data-ratio="${ratio}"
+            class="px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-liminal-card focus:ring-liminal-accent
+                ${state.aspectRatio === ratio
+                    ? 'bg-liminal-accent text-gray-900 shadow'
+                    : 'bg-gray-700 hover:bg-gray-600 text-liminal-text'
+                }">
+            ${ratio}
+        </button>
+    `).join('');
+    if (DOMElements.imageDisplayContainer) {
+        DOMElements.imageDisplayContainer.style.aspectRatio = state.aspectRatio.replace(':', ' / ');
+    }
+};
+
+const renderHistory = () => {
+    if (!DOMElements.historySection || !DOMElements.historyGrid) return;
+    if (state.history.length === 0) {
+        DOMElements.historySection.classList.add('hidden');
+        return;
+    }
+    DOMElements.historySection.classList.remove('hidden');
+    DOMElements.historyGrid.innerHTML = state.history.map(item => `
+        <div class="bg-liminal-card border border-liminal-border rounded-lg overflow-hidden group relative">
+            <img src="${item.imageUrl}" alt="Generated historical image" class="w-full h-48 object-cover"/>
+            <div class="p-3">
+                 <p class="text-xs text-liminal-text-muted truncate" title="${item.prompt}">${item.prompt}</p>
+                 ${item.negativePrompt ? `<p class="text-xs text-red-400/70 truncate" title="Excluded: ${item.negativePrompt}">Exclude: ${item.negativePrompt}</p>` : ''}
+            </div>
+            <div class="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <button data-reuse-id="${item.id}" class="p-2 text-white hover:text-liminal-accent transition-colors" title="Reuse Prompt">${ICONS.refresh}</button>
+                <button data-delete-id="${item.id}" class="p-2 text-white hover:text-red-500 transition-colors" title="Delete Item">${ICONS.trash}</button>
+            </div>
+        </div>
+    `).join('');
+};
+
+const saveHistory = () => {
+    try {
+        localStorage.setItem('liminalPromptHistory', JSON.stringify(state.history));
+    } catch (e) {
+        console.error("Failed to save history to localStorage:", e);
+    }
+};
+
+const updateImageDisplay = ({ isLoading = false, error = '', imageUrl = '' }) => {
+    const container = DOMElements.imageDisplayContainer;
+    if (!container) return;
+
+    if (isLoading) {
+        container.innerHTML = `<div class="w-full h-full bg-liminal-card rounded-lg flex flex-col items-center justify-center animate-pulse-subtle">${ICONS.image}<p class="mt-4 text-liminal-text-muted">Generating liminality...</p></div>`;
+    } else if (error) {
+        container.innerHTML = `<div class="text-center text-red-400 p-4">${ICONS.alert}<p class="font-semibold">Error Generating Image</p><p class="text-sm">${error}</p></div>`;
+    } else if (imageUrl) {
+        container.innerHTML = `<img src="${imageUrl}" alt="Generated liminal space" class="w-full h-full object-cover animate-fade-in" /><a href="${imageUrl}" download="liminal-space.jpeg" class="absolute bottom-3 right-3 bg-liminal-accent text-gray-900 p-2 rounded-full shadow-lg hover:bg-liminal-accent-hover transition-all duration-200 ease-in-out" aria-label="Download image">${ICONS.download}</a>`;
+    } else {
+        container.innerHTML = `<div class="text-center text-liminal-text-muted p-4">${ICONS.image}<p>Your generated image will appear here.</p></div>`;
+    }
+};
+
+const setLoadingState = (button, text, isLoading) => {
+    if (!button) return;
+    button.disabled = isLoading;
+    if (isLoading) {
+        button.innerHTML = `${ICONS.spinner} ${text}...`;
+    } else {
+        button.innerHTML = button.dataset.originalText || text; // Fallback to text if originalText not set
+    }
+};
+
+// --- EVENT HANDLERS ---
+const handleSurpriseMe = () => {
+    state.selections.spatial = SPATIAL_ARCHETYPES[Math.floor(Math.random() * SPATIAL_ARCHETYPES.length)];
+    state.selections.atmospheric = ATMOSPHERIC_MODIFIERS[Math.floor(Math.random() * ATMOSPHERIC_MODIFIERS.length)];
+    state.selections.temporal = TEMPORAL_AMPLIFIERS[Math.floor(Math.random() * TEMPORAL_AMPLIFIERS.length)];
+    updateButtonVisuals();
+    updateFinalPrompt();
+};
+
+const handlePromptOptionSelect = (e) => {
+    const button = e.target.closest('button[data-key]');
+    if (!button) return;
+
+    const key = button.dataset.key;
+    const value = button.dataset.value;
+    const options = PROMPT_DATA[key].options;
+    state.selections[key] = options.find(opt => opt.value === value);
+    updateButtonVisuals();
+    updateFinalPrompt();
+};
+
+const handleAspectRatioChange = (e) => {
+    const button = e.target.closest('button[data-ratio]');
+    if (!button) return;
+
+    state.aspectRatio = button.dataset.ratio;
+    renderAspectRatioButtons();
+};
+
+const handleHistoryAction = (e) => {
+    const reuseBtn = e.target.closest('[data-reuse-id]');
+    const deleteBtn = e.target.closest('[data-delete-id]');
+
+    if (reuseBtn) {
+        const item = state.history.find(h => h.id === reuseBtn.dataset.reuseId);
+        if (item) {
+            if (DOMElements.finalPromptTextarea) DOMElements.finalPromptTextarea.value = item.prompt;
+            if (DOMElements.negativePromptInput) DOMElements.negativePromptInput.value = item.negativePrompt;
+            state.selections = { spatial: null, atmospheric: null, temporal: null };
+            updateButtonVisuals();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }
+
+    if (deleteBtn) {
+        state.history = state.history.filter(h => h.id !== deleteBtn.dataset.deleteId);
+        saveHistory();
+        renderHistory();
+    }
+};
+
+const handleGenerateImage = async () => {
+    if (!DOMElements.finalPromptTextarea || !DOMElements.generateImageBtn) return;
+    const prompt = DOMElements.finalPromptTextarea.value;
+    if (!prompt) return;
+
+    if (!ai && !initializeAI()) {
+        updateImageDisplay({ error: "AI not initialized. Please provide API Key and refresh." });
+        return;
+    }
+
+    setLoadingState(DOMElements.generateImageBtn, 'Generating', true);
+    updateImageDisplay({ isLoading: true });
+
+    try {
+        const negativePrompt = DOMElements.negativePromptInput ? DOMElements.negativePromptInput.value : "";
+        const imageUrl = await generateLiminalImage(prompt, state.aspectRatio, negativePrompt);
+        updateImageDisplay({ imageUrl });
+
+        const newHistoryItem = {
+            id: Date.now().toString(),
+            prompt,
+            negativePrompt,
+            imageUrl,
+            timestamp: Date.now(),
+        };
+        state.history.unshift(newHistoryItem); // Add to the beginning for most recent first
+        if (state.history.length > 20) { // Limit history size
+            state.history.pop();
+        }
+        saveHistory();
+        renderHistory();
+
+    } catch(err) {
+        console.error(err);
+        const message = err instanceof Error ? err.message : 'An unknown error occurred.';
+        updateImageDisplay({ error: message });
+    } finally {
+        setLoadingState(DOMElements.generateImageBtn, 'Generating', false);
+    }
+};
+
+const handleAskAssistant = async () => {
+    if (!DOMElements.aiPromptIdeaInput || !DOMElements.askAssistantBtn || !DOMElements.assistantError) return;
+    const idea = DOMElements.aiPromptIdeaInput.value;
+    if (!idea) return;
+
+    if (!ai && !initializeAI()) {
+        DOMElements.assistantError.textContent = "AI not initialized. Please provide API Key and refresh.";
+        DOMElements.assistantError.classList.remove('hidden');
+        return;
+    }
+
+    setLoadingState(DOMElements.askAssistantBtn, 'Crafting', true);
+    DOMElements.assistantError.classList.add('hidden');
+
+    try {
+        const newPrompt = await generateLiminalPrompt(idea);
+        const fullPrompt = `${newPrompt}, in the style of liminal space photography, eerie, unsettling, nostalgic, empty`;
+        if (DOMElements.finalPromptTextarea) DOMElements.finalPromptTextarea.value = fullPrompt;
+        state.selections = { spatial: null, atmospheric: null, temporal: null }; // Reset manual selections
+        updateButtonVisuals();
+    } catch (err) {
+        console.error(err);
+        const message = err instanceof Error ? err.message : 'An unknown error occurred.';
+        DOMElements.assistantError.textContent = message;
+        DOMElements.assistantError.classList.remove('hidden');
+    } finally {
+         setLoadingState(DOMElements.askAssistantBtn, 'Crafting', false);
+    }
+};
+
+
+// --- INITIALIZATION ---
+const init = () => {
+    // Store original button text
+    if (DOMElements.generateImageBtn) DOMElements.generateImageBtn.dataset.originalText = DOMElements.generateImageBtn.textContent;
+    if (DOMElements.askAssistantBtn) DOMElements.askAssistantBtn.dataset.originalText = DOMElements.askAssistantBtn.textContent;
+
+    // Inject Icons
+    if (DOMElements.surpriseMeBtn) DOMElements.surpriseMeBtn.insertAdjacentHTML('afterbegin', ICONS.shuffle);
+    if (DOMElements.copyPromptBtn) DOMElements.copyPromptBtn.innerHTML = ICONS.copy;
+    if (DOMElements.aiAssistantHeader) DOMElements.aiAssistantHeader.insertAdjacentHTML('afterbegin', ICONS.sparkles);
+
+    // Load State
+    try {
+        const storedHistory = localStorage.getItem('liminalPromptHistory');
+        if (storedHistory) {
+            state.history = JSON.parse(storedHistory);
+        }
+    } catch(e) {
+        console.error("Failed to parse history from localStorage", e);
+        state.history = []; // Initialize with empty history on error
+    }
+
+    // Initial Render
+    renderPromptColumns();
+    renderAspectRatioButtons();
+    if(Object.keys(PROMPT_DATA.spatial.options).length > 0) { // Check if data is available
+        handleSurpriseMe(); // Set an initial random selection
+    }
+    updateImageDisplay({}); // Show placeholder
+    renderHistory();
+
+    // Add Event Listeners
+    if (DOMElements.surpriseMeBtn) DOMElements.surpriseMeBtn.addEventListener('click', handleSurpriseMe);
+    Object.values(DOMElements.columns).forEach(col => {
+        if (col) col.addEventListener('click', handlePromptOptionSelect);
+    });
+    if (DOMElements.aspectRatioContainer) DOMElements.aspectRatioContainer.addEventListener('click', handleAspectRatioChange);
+    if (DOMElements.generateImageBtn) DOMElements.generateImageBtn.addEventListener('click', handleGenerateImage);
+    if (DOMElements.askAssistantBtn) DOMElements.askAssistantBtn.addEventListener('click', handleAskAssistant);
+    if (DOMElements.historyGrid) DOMElements.historyGrid.addEventListener('click', handleHistoryAction);
+    if (DOMElements.copyPromptBtn && DOMElements.finalPromptTextarea) {
+        DOMElements.copyPromptBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(DOMElements.finalPromptTextarea.value)
+                .then(() => { /* Maybe show a temporary "Copied!" message */ })
+                .catch(err => console.error('Failed to copy text: ', err));
+        });
+    }
+
+    // Attempt to initialize AI on load, so it's ready if the user clicks generate immediately.
+    // User will be prompted for key if not found.
+    initializeAI();
+};
+
+// Wait for the DOM to be fully loaded before running the script
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    // DOMContentLoaded has already fired
+    init();
+}
